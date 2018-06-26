@@ -1,0 +1,9 @@
+[package]
+name = "quicksilver_train"
+version = "0.1.0"
+authors = ["harmony <me@hrmny.pw>"]
+
+[dependencies]
+rand = "*"
+quicksilver = { git = "https://github.com/ryanisaacg/quicksilver", branch = "development" }
+
