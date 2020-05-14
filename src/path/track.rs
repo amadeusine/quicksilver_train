@@ -1,7 +1,8 @@
 use std::f32::consts::PI;
 
 use quicksilver::{
-  graphics::{Window, Color},
+  graphics::{Color},
+  lifecycle::{Window}
 };
 
 use super::super::draw_line;
@@ -93,11 +94,11 @@ impl TrackPiece for Diagonal {
 }
 
 const TURN_RADIUS: f32 = 2.5 * GRID_CELL_SIZE as f32;
-const TURN_ANGLE: f32 = 0.643501102924346923828125;
+const TURN_ANGLE: f32 = 0.65;
 // 0.75_f32.atan();
 pub const TURN_LEN: f32 = (TURN_ANGLE * TURN_RADIUS);
 
-const TURN_DIVISIONS: i32 = 8;
+const TURN_DIVISIONS: i32 = 16;
 const TURN_ANGLE_FRACT: f32 = TURN_ANGLE / TURN_DIVISIONS as f32;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -114,8 +115,15 @@ impl Turn {
     let prev_pos = start.pos;
     let curr_pos = end.pos;
 
-    let matc = |pos: Pos, center: Pos, turn: i8, ang: f32, reverse: bool| -> (Pos, i8, f32) {
-      (Pos((pos.0 as f32 + center.0 as f32 * 2.5) as i32, (pos.1 as f32 + center.1 as f32 * 2.5) as i32), turn, ang * 2. * PI - if reverse { turn as f32 * TURN_ANGLE } else { 0. })
+    fn matc (pos: Pos, center: Pos, turn: i8, ang: f32, reverse: bool) -> (Pos, i8, f32) {
+      (
+        Pos(
+          (pos.0 as f32 + center.0 as f32 * 2.5) as i32,
+          (pos.1 as f32 + center.1 as f32 * 2.5) as i32
+        ),
+        turn,
+        ang * 2. * PI - if reverse { turn as f32 * TURN_ANGLE } else { 0. }
+      )
     };
 
     use self::Dir::*;

@@ -10,10 +10,11 @@ mod train;
 use std::collections::HashMap;
 
 use quicksilver::{
-  State, run, Result,
+  Result,
   geom::{Rectangle, Vector, Circle, Transform},
-  input::{Event, MouseButton, ButtonState},
-  graphics::{Color, WindowBuilder, Window, Sprite},
+  input::{MouseButton, ButtonState},
+  graphics::{Color},
+  lifecycle::{run, Event, Settings, State, Window},
 };
 
 use path::{
@@ -64,19 +65,31 @@ pub(crate) fn draw_line(window: &mut Window, x: f32, y: f32, ex: f32, ey: f32, w
 
   let len = if diagonal {
     (dx.abs().powi(2) + dy.abs().powi(2)).sqrt()
+  } else if is_x {
+    (ex - x).abs()
   } else {
-    if is_x {
-      (ex - x).abs()
-    } else {
-      (ey - y).abs()
-    }
+    (ey - y).abs()
   };
 
-  let angle = (180. * (dx / -dy).atan() / std::f32::consts::PI) - 90.;
+  let angle = if diagonal {
+    (180. * (dx / -dy).atan() / std::f32::consts::PI) - 90.
+  } else if is_x {
+    0.
+  } else {
+    90.
+  };
 
   let center = Vector::new(x + dx / 2.0, y + dy / 2.0);
+  // drawing is top left so we have to offset
+  let half_width = width / 2.;
+  let off = Vector::new(-len / 2., -half_width);
 
-  window.draw(&Sprite::rectangle(Rectangle::new(0., 0., len, width)).with_position(center).with_transform(Transform::rotate(angle)).with_color(color));
+  window.draw_ex(
+    &Rectangle::new((0, 0), (len, width)),
+    color,
+    Transform::translate(center + off) * Transform::rotate(angle),
+    0.0
+  );
 }
 
 fn snap_to_grid(pos: Pos) -> Pos {
@@ -119,7 +132,7 @@ impl State for GameState {
 
     match evt {
       Event::MouseMoved(Vector { x, y }) => {
-//        if state.middle() {
+//        if window.mouse()[MouseButton::Middle].is_down() {
 //          self.cam_pos.0 += dx;
 //          self.cam_pos.1 += dy;
 //        }
@@ -157,9 +170,9 @@ impl State for GameState {
 
             let mut path = None;
             std::mem::swap(&mut self.path, &mut path);
-            let mut path = path.expect("we checked for none");
+            let path = path.expect("we checked for none");
 
-            if let Some(mut pieces) = path.into_pieces() {
+            if let Some(pieces) = path.into_pieces() {
               for track in pieces {
                 let sta = track.start();
                 let mut end = track.end();
@@ -187,7 +200,7 @@ impl State for GameState {
   }
 
   fn draw(&mut self, window: &mut Window) -> Result<()> {
-    window.clear(Color::white());
+    window.clear(Color::WHITE)?;
 
     let screen_size = window.screen_size();
 
@@ -195,18 +208,20 @@ impl State for GameState {
       let x: f32 = i as f32 * GRID_CELL_SIZE;
       let y: f32 = screen_size.y;
 
-      draw_line(window, x, 0., x, y, 1., Color::black().with_alpha(0.3));
+      draw_line(window, x, 0., x, y, 1., Color::BLACK.with_alpha(0.3));
+//      window.draw(&Line::new((x, 0.), (x, y)), Color::BLACK.with_alpha(0.3));
     }
 
     for i in 0..((screen_size.y / GRID_CELL_SIZE).ceil() as i16) {
       let x: f32 = screen_size.x;
       let y: f32 = i as f32 * GRID_CELL_SIZE;
 
-      draw_line(window, 0., y, x, y, 1., Color::black().with_alpha(0.3));
+      draw_line(window, 0., y, x, y, 1., Color::BLACK.with_alpha(0.3));
+//      window.draw(&Line::new((0., y), (x, y)), Color::BLACK.with_alpha(0.3));
     }
-
+//
     for track in self.tracks.iter() {
-      track.draw(window, Color::black());
+      track.draw(window, Color::BLACK);
     }
 
     for train in self.trains.iter_mut() {
@@ -217,14 +232,24 @@ impl State for GameState {
       path.draw(window);
     }
 
-    window.draw(&Sprite::circle(Circle::new(self.mouse_pos.0, self.mouse_pos.1, 8)).with_color(Color::purple()));
+//    draw_line(window, 32., 32., 64., 32., 4., Color::BLACK);
+//    draw_line(window, 32., 32., 32., 64., 4., Color::BLACK);
+//    draw_line(window, 32., 32., 64., 64., 4., Color::BLACK);
 
-    window.present();
+    window.draw(&Circle::new((self.mouse_pos.0, self.mouse_pos.1), 8), Color::PURPLE);
+
+//    window.present();
 
     Ok(())
   }
 }
 
 fn main() {
-  run::<GameState>(WindowBuilder::new("Trains!", 1280, 720).with_fullscreen(true)).unwrap();
+  run::<GameState>(
+    "Trains!",
+    (1280, 720).into(),
+    Settings {
+      multisampling: Some(2),
+      ..Settings::default()
+    });
 }

@@ -10,7 +10,8 @@ use std::{
 
 use quicksilver::{
   geom::{Circle},
-  graphics::{Window, Sprite, Color}
+  graphics::{Color},
+  lifecycle::{Window}
 };
 
 use super::{
@@ -124,6 +125,50 @@ impl Dir {
       UpLeft => DownRight,
     }
   }
+
+  pub fn from_angle(angle: f32) -> Dir {
+    use self::Dir::*;
+
+    let angle = (angle % 360.).abs();
+
+    if angle < 22.5 { return Up };
+    if angle < 67.5 { return UpRight };
+    if angle < 112.5 { return Right };
+    if angle < 157.5 { return DownRight };
+    if angle < 202.5 { return Down };
+    if angle < 247.5 { return DownLeft };
+    if angle < 292.5 { return Left };
+    if angle < 337.5 { return UpLeft };
+    if angle < 360.5 { return Up };
+
+    unreachable!()
+  }
+
+  pub fn into_angle(self) -> f32 {
+    use self::Dir::*;
+
+    match self {
+      Up => 0.0,
+      UpRight => 45.0,
+      Right => 90.0,
+      DownRight => 135.0,
+      Down => 180.0,
+      DownLeft => 235.0,
+      Left => 270.0,
+      UpLeft => 315.0,
+    }
+  }
+
+  pub fn difference(&self, other: Dir) -> f32 {
+    let self_angle = self.into_angle();
+    let other_angle = other.into_angle();
+
+    let t1 = (self_angle - other_angle).abs();
+    let t2 = ((self_angle + 360.0) - other_angle).abs();
+    let t3 = (self_angle - (other_angle + 360.0)).abs();
+
+    (if t1 < t2 { if t1 < t3 { t1 } else { t3 } } else { if t2 < t3 { t2 } else { t3 } }) / 180.0
+  }
 }
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq, Ord, Eq, Hash)]
@@ -217,11 +262,14 @@ impl Connection {
   }
 }
 
+const DEBUG: bool = true;
+
 // grid size, not screen size
 // #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Path {
   start: Connection,
   path: Option<Vec<Track>>,
+  debug: Vec<Track>,
 }
 
 impl Path {
@@ -229,6 +277,7 @@ impl Path {
     Path {
       start: Connection::new(start, dir),
       path: None,
+      debug: Vec::new(),
     }
   }
 
@@ -240,9 +289,15 @@ impl Path {
     // draw path
 //    graphics::set_color(window, [0.0, 0.7, 0.2, 1.0].into())?;
 
+    if DEBUG {
+      for track in self.debug.iter() {
+        track.draw(window, Color::PURPLE);
+      }
+    }
+
     if let Some(ref path) = self.path {
       for track in path.iter() {
-        track.draw(window, Color::cyan());
+        track.draw(window, Color::CYAN);
       }
     }
 
@@ -250,16 +305,32 @@ impl Path {
 //    graphics::set_color(window, [1.0, 0.0, 0.0, 1.0].into())?;
     let pos = self.start.pos;
 
-    window.draw(&Sprite::circle(Circle::new(pos.0, pos.1, 4)).with_color(Color::red()));
+    window.draw(&Circle::new((pos.0, pos.1), 4), Color::RED);
 
 //    graphics::circle(window, DrawMode::Fill, pos.into(), 4., 0.2)?;
   }
 
   fn estimate(from: &Connection, to: &Pos) -> i32 {
-    ((from.pos.0 - to.0).abs() + (from.pos.1 - to.0).abs()) * 10
+    let dx = (from.pos.0 - to.0) as f32;
+    let dy = (from.pos.1 - to.1) as f32;
+    let dy = if dy == 0.0 { 0.00001 } else { dy };
+
+    // FIXME: fuggered
+    let dir = Dir::from_angle(180. * (dx / -dy).atan() / std::f32::consts::PI);
+
+    let pos_diff = (dx.abs() + dy.abs()) * 10.0;
+    let pos_diff_abs = (dx.abs().powi(2) + dy.abs().powi(2)).sqrt() * 11.;
+    let dir_diff = from.dir.difference(dir) * 0.0;
+
+//    (pos_diff + dir_diff) as i32
+    pos_diff_abs as i32
   }
 
   pub fn add_path(&mut self, to: Pos) {
+    if DEBUG {
+      self.debug.clear();
+    }
+
     let path = self.find_path(to);
 
     self.path = match path {
@@ -270,7 +341,7 @@ impl Path {
     };
   }
 
-  pub fn find_path(&self, to: Pos) -> Option<Vec<Connection>> {
+  pub fn find_path(&mut self, to: Pos) -> Option<Vec<Connection>> {
     let mut open: Vec<usize> = Vec::new();
     let mut closed: Vec<usize> = Vec::new();
 
@@ -340,7 +411,7 @@ impl Path {
               continue;
             }
 
-            let mut child = children.get_mut(*i).expect("a children entry should exist for all nodes");
+            let child = children.get_mut(*i).expect("a children entry should exist for all nodes");
             *child = target;
 
             n_node.g_score = total_g;
@@ -354,6 +425,10 @@ impl Path {
           g_score: total_g,
           f_score: total_g + Path::estimate(&conn, &to),
         };
+
+        if DEBUG {
+          self.debug.push(Track::from((node.conn, conn)));
+        }
 
         lookup.insert(conn, count);
         open.push(count);

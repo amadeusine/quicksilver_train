@@ -6,11 +6,8 @@ use quicksilver::{
   geom::{
     Circle
   },
-  graphics::{
-    Window,
-    Color,
-    Sprite
-  }
+  graphics::{Color},
+  lifecycle::{Window}
 };
 
 //use ggez::{
@@ -242,6 +239,6 @@ impl Segment {
   }
 
   pub fn draw(&mut self, window: &mut Window, color: Color) {
-    window.draw(&Sprite::circle(Circle::new(self.pos.0, self.pos.1, 5.)).with_color(color));
+    window.draw(&Circle::new((self.pos.0, self.pos.1), 5), color);
   }
 }
